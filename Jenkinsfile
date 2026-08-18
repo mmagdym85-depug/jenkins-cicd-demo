@@ -1,29 +1,56 @@
 pipeline {
     agent any
 
+    environment {
+        IMAGE_NAME = 'jenkins-cicd-demo'
+        IMAGE_TAG  = '1.0'
+        CONTAINER_NAME = 'jenkins-cicd-demo'
+    }
+
     stages {
 
         stage('Checkout') {
             steps {
-                echo 'Code checked out from GitHub'
+                checkout scm
             }
         }
 
-        stage('Build') {
+        stage('Build Docker Image') {
             steps {
-                echo 'Building application...'
+                sh '''
+                    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                '''
             }
         }
 
-        stage('Test') {
+        stage('Test Docker Image') {
             steps {
-                echo 'Running tests...'
+                sh '''
+                    docker run --rm ${IMAGE_NAME}:${IMAGE_TAG} \
+                    sh -c "test -f /usr/share/nginx/html/index.html"
+                '''
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy Container') {
             steps {
-                echo 'Deploying application...'
+                sh '''
+                    docker rm -f ${CONTAINER_NAME} 2>/dev/null || true
+
+                    docker run -d \
+                      --name ${CONTAINER_NAME} \
+                      -p 8081:80 \
+                      ${IMAGE_NAME}:${IMAGE_TAG}
+                '''
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                sh '''
+                    sleep 3
+                    curl -f http://localhost:8081
+                '''
             }
         }
     }
